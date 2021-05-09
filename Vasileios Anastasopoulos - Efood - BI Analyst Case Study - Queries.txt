@@ -1,0 +1,128 @@
+--General Information and Instructions
+--1)Each query result is used as input for a DataStudio dashboard
+--2)The link for the DataStudio Report including all respective dashboards can be found below:
+--https://datastudio.google.com/reporting/a5d97369-75fc-4098-a19b-f5a6d845c0eb/page/z8wHC
+--3)Run separately each query to see the relative results
+
+--demand trend of orders across time (per city and cuisine)
+--calculate also the daily average basket size 
+SELECT 
+cast(submit_dt as date) date, city, cuisine_parent
+,count(order_id) number_of_orders, avg(basket) as avg_basket
+FROM `bi-2019-test.ad_hoc.orders_jan2021`
+group by cast(submit_dt as date), city, cuisine_parent
+
+
+--average orders per day
+select city, cuisine_parent, avg(number_of_orders) avg_orders
+from
+    (
+    SELECT 
+    cast(submit_dt as date) date, city, cuisine_parent, count(order_id) number_of_orders
+    FROM `bi-2019-test.ad_hoc.orders_jan2021`
+    group by cast(submit_dt as date), city, cuisine_parent
+    )
+group by city, cuisine_parent
+
+
+
+--average orders per day per client
+--resulted to approximately one order per client per cuisine on a daily basis, no value to use for analysis
+select city, cuisine_parent, avg(number_of_orders) avg_orders
+from
+    (
+    SELECT 
+    cast(submit_dt as date) date, user_id, city, cuisine_parent, count(order_id) number_of_orders
+    FROM `bi-2019-test.ad_hoc.orders_jan2021`
+    group by cast(submit_dt as date), user_id, city, cuisine_parent
+    )
+group by city, cuisine_parent
+
+
+--monthly average metrics per client
+--calculate how many orders every customer makes on average each month
+--in additiona calculate their monthly average basket per cuisine and city
+select city, cuisine_parent
+,avg(number_of_orders) avg_orders, avg(basket_value) as avg_basket_value from 
+    (
+    select  
+    user_id, city, cuisine_parent
+    ,count(order_id) number_of_orders, sum(basket) basket_value
+    FROM `bi-2019-test.ad_hoc.orders_jan2021`
+    group by user_id, city, cuisine_parent
+    )
+group by city, cuisine_parent
+
+
+
+--Group customers per number of orders
+--Monitor how many customers are included in each segment, based on their total monthly orders
+select
+city, cuisine_parent
+,case 
+when number_of_orders between 0 and 1 then '0-1'
+when number_of_orders between 2 and 4 then '2-4'
+when number_of_orders between 5 and 10 then '5-10'
+when number_of_orders between 11 and 15 then '11-15'
+else '>15'
+end as Order_Group
+,count(user_id) as number_of_users
+from
+    (
+    SELECT 
+    user_id, city, cuisine_parent
+    ,count(order_id) number_of_orders
+    --, sum(basket) as total_basket
+    FROM `bi-2019-test.ad_hoc.orders_jan2021`
+    group by user_id, city, cuisine_parent
+    )
+group by city, cuisine_parent, Order_Group
+
+
+--Group customers per basket value
+--Monitor how many customers are included in the particular segmenets, based on their total monthly basket size
+
+select
+city, cuisine_parent
+,case 
+when total_basket between 0 and 5 then '0-5'
+when total_basket between 6 and 10 then '6-10'
+when total_basket between 11 and 20 then '11-20'
+when total_basket between 21 and 50 then '21-50'
+when total_basket between 51 and 100 then '51-100'
+else '>100'
+end as Basket_Group
+,count(user_id) as number_of_users
+from
+    (
+    SELECT 
+    user_id, city, cuisine_parent
+    ,sum(basket) as total_basket
+    FROM `bi-2019-test.ad_hoc.orders_jan2021`
+    group by user_id, city, cuisine_parent
+    )
+group by city, cuisine_parent, Basket_Group
+
+
+
+--shops per theme per city
+--using this information together with the amount of orders per cuisine, we can
+--trace cuisines in particular cities that have high volume but inadequate shops or the opposite
+--and therefore, adjust our business accordingly, include more shops, etc
+SELECT 
+city, cuisine_parent, count(distinct shop_id) as number_of_shops
+FROM `bi-2019-test.ad_hoc.orders_jan2021`
+group by city, cuisine_parent
+
+
+
+--order traffic per hour
+--this is used to identify potential segments to target, interested in coffee
+SELECT 
+city, cuisine_parent, extract(hour from submit_dt) hour, count(order_id)
+FROM `bi-2019-test.ad_hoc.orders_jan2021`
+group by city, cuisine_parent, hour
+
+
+
+
